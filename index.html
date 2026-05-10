@@ -19,5 +19,73 @@
 	<script src="c2runtime.js"></script>
 	<script src="start.js"></script>
 	<script src="register-sw.js"></script>
+
+<!-- Death Counter Overlay -->
+<div id="lazyfly-deaths" style="
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  z-index: 9999;
+  font-family: monospace;
+  font-size: 13px;
+  color: rgba(255,255,255,0.85);
+  background: rgba(30,30,30,0.72);
+  padding: 3px 10px 3px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: 0.04em;
+">&#128128; 0</div>
+
+<script>
+(function () {
+  var KEY = 'lazyfly_total_deaths';
+  var totalDeaths = parseInt(localStorage.getItem(KEY) || '0', 10);
+  var lastSessionCount = 0;
+  var el = document.getElementById('lazyfly-deaths');
+
+  function render() {
+    el.textContent = '\uD83D\uDC80 ' + totalDeaths;
+  }
+  render();
+
+  // Cached reference to the DeadFlies variable object in the C3 runtime
+  var deadFliesVar = null;
+
+  function getSessionDeaths() {
+    var rt = window.c3runtime;
+    if (!rt || !rt.g_hZ) return null;
+
+    // Find the DeadFlies global variable by name (cached after first discovery)
+    if (!deadFliesVar) {
+      var keys = Object.keys(rt.g_hZ);
+      for (var i = 0; i < keys.length; i++) {
+        var v = rt.g_hZ[keys[i]];
+        if (v && v.name === 'DeadFlies') {
+          deadFliesVar = v;
+          break;
+        }
+      }
+    }
+
+    if (!deadFliesVar || typeof deadFliesVar.data !== 'number') return null;
+    return deadFliesVar.data;
+  }
+
+  function poll() {
+    var current = getSessionDeaths();
+    if (current === null) return; // runtime not ready yet
+
+    if (current > lastSessionCount) {
+      totalDeaths += (current - lastSessionCount);
+      localStorage.setItem(KEY, totalDeaths);
+      render();
+    }
+    lastSessionCount = current;
+  }
+
+  setInterval(poll, 250);
+})();
+</script>
 </body>
 </html>
