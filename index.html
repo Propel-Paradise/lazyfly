@@ -20,42 +20,105 @@
 	<script src="start.js"></script>
 	<script src="register-sw.js"></script>
 
+<!--
+  Attempt counter — positioned directly below the in-game level number text.
+
+  The level number ("Level 1", "Level 2" etc.) is rendered by the Level1Text
+  object type (type uid 35, plugin type 9 = Text). Every layout places one
+  instance of it at a world-space position with: font Arial 12px, color black.
+  (Confirmed from data.js instance data.)
+
+  We read the instance's world x/y, convert to screen coords using the
+  layout's scrollX/scrollY and the canvas scale, then place this div
+  immediately below it — same font, same size, same color.
+
+  rt.g_h$.scrollX / scrollY = camera center in world coords  (confirmed c2runtime.js)
+  rt.g_iS / rt.g_iT         = logical canvas width / height  (confirmed c2runtime.js)
+  rt.g_h$.scale              = layout zoom                    (confirmed c2runtime.js)
+-->
 <div id="lf-attempt" style="
   position: fixed;
   z-index: 9999;
-  font-family: Arial Black, Arial, sans-serif;
-  font-size: 14px;
-  font-weight: 900;
-  color: rgba(40,40,40,0.35);
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: normal;
+  color: rgb(0,0,0);
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   display: none;
 ">Attempt 1</div>
 
 <script>
 (function () {
-  var el        = document.getElementById('lf-attempt');
-  var attempts  = 1;
+  var el         = document.getElementById('lf-attempt');
+  var attempts   = 1;
   var lastDeaths = 0;
   var lastLayout = null;
-  var dfVar      = null;   // cached DeadFlies variable object
+  var dfVar      = null;
 
   function render() {
     el.textContent = 'Attempt ' + attempts;
   }
 
-  function pin() {
+  // Convert a world-space point to fixed screen coords using the runtime's
+  // camera scroll and the canvas physical position.
+  function worldToScreen(rt, worldX, worldY) {
     var c = window.c3canvas;
-    if (!c) return false;
+    if (!c) return null;
     var r = c.getBoundingClientRect();
-    if (r.width < 10 || r.height < 10) return false;
-    // Bottom-left corner of the white canvas, inset 3% / 5%
-    el.style.left   = (r.left + r.width  * 0.03) + 'px';
-    el.style.top    = (r.top  + r.height * 0.88) + 'px';
+    if (r.width < 10 || r.height < 10) return null;
+
+    var layout  = rt.g_h$;
+    var scrollX = layout.scrollX || 0;
+    var scrollY = layout.scrollY || 0;
+    var scale   = layout.scale   || 1;
+    var logW    = rt.g_iS; // logical canvas width  (e.g. 854)
+    var logH    = rt.g_iT; // logical canvas height (e.g. 480)
+
+    // World → logical canvas coords (camera center = canvas center)
+    var lx = (worldX - scrollX) * scale + logW / 2;
+    var ly = (worldY - scrollY) * scale + logH / 2;
+
+    // Logical → physical screen coords
+    return {
+      x: r.left + lx * (r.width  / logW),
+      y: r.top  + ly * (r.height / logH)
+    };
+  }
+
+  function pin(rt) {
+    // Level numbers are all instances of the Level1Text type (id 35 in data.js).
+    // Each layout places one instance with the level's text at its world position.
+    var type = rt.types && rt.types['Level1Text'];
+    if (!type || !type.g_jQ || !type.g_jQ.length) return false;
+
+    var inst = type.g_jQ[0];
+
+    // World position of the level text's top-left corner
+    // (inst.x, inst.y are the centre; width≈60, height≈20 from data.js)
+    var instX = inst.x - (inst.width  || 60) / 2;
+    var instY = inst.y - (inst.height || 20) / 2;
+
+    var topLeft = worldToScreen(rt, instX, instY);
+    if (!topLeft) return false;
+
+    // Scale the 20px world-height to screen pixels for the vertical gap
+    var c      = window.c3canvas;
+    var r      = c.getBoundingClientRect();
+    var scale  = (rt.g_h$.scale || 1);
+    var pxPerWorldUnit = (r.height / rt.g_iT) * scale;
+    var textScreenH    = 20 * pxPerWorldUnit;
+
+    // Place the div just below the level text (2px gap)
+    el.style.left    = topLeft.x + 'px';
+    el.style.top     = (topLeft.y + textScreenH + 2) + 'px';
     el.style.display = 'block';
+
+    // Match the font size to the level text's 12px world size → screen px
+    var fontSize = Math.round(12 * pxPerWorldUnit);
+    el.style.fontSize = Math.max(8, fontSize) + 'px';
+
     return true;
   }
 
@@ -71,12 +134,13 @@
     return dfVar;
   }
 
+  render();
+
   setInterval(function () {
     var rt = window.c3runtime;
-    if (!rt || !rt.g_hZ || !rt.g_h$) return;
-    if (!pin()) return;
+    if (!rt || !rt.g_hZ || !rt.g_h$ || !rt.g_iS) return;
 
-    // Reset on level change
+    // Reset on layout change
     var layout = rt.g_h$.g_jC;
     if (layout !== lastLayout) {
       lastLayout = layout;
@@ -86,7 +150,13 @@
       render();
     }
 
-    // Count deaths → attempts
+    // Position below the level number
+    if (!pin(rt)) {
+      el.style.display = 'none';
+      return;
+    }
+
+    // Increment on deaths
     var v = getDeadFlies(rt);
     if (!v || typeof v.data !== 'number') return;
     if (v.data > lastDeaths) {
