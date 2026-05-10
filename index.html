@@ -19,5 +19,83 @@
 	<script src="c2runtime.js"></script>
 	<script src="start.js"></script>
 	<script src="register-sw.js"></script>
+
+<div id="lf-attempt" style="
+  position: fixed;
+  z-index: 9999;
+  font-family: Arial Black, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  color: rgba(40,40,40,0.35);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: none;
+">Attempt 1</div>
+
+<script>
+(function () {
+  var el        = document.getElementById('lf-attempt');
+  var attempts  = 1;
+  var lastDeaths = 0;
+  var lastLayout = null;
+  var dfVar      = null;   // cached DeadFlies variable object
+
+  function render() {
+    el.textContent = 'Attempt ' + attempts;
+  }
+
+  function pin() {
+    var c = window.c3canvas;
+    if (!c) return false;
+    var r = c.getBoundingClientRect();
+    if (r.width < 10 || r.height < 10) return false;
+    // Bottom-left corner of the white canvas, inset 3% / 5%
+    el.style.left   = (r.left + r.width  * 0.03) + 'px';
+    el.style.top    = (r.top  + r.height * 0.88) + 'px';
+    el.style.display = 'block';
+    return true;
+  }
+
+  function getDeadFlies(rt) {
+    if (dfVar) return dfVar;
+    var keys = Object.keys(rt.g_hZ);
+    for (var i = 0; i < keys.length; i++) {
+      if (rt.g_hZ[keys[i]].name === 'DeadFlies') {
+        dfVar = rt.g_hZ[keys[i]];
+        break;
+      }
+    }
+    return dfVar;
+  }
+
+  setInterval(function () {
+    var rt = window.c3runtime;
+    if (!rt || !rt.g_hZ || !rt.g_h$) return;
+    if (!pin()) return;
+
+    // Reset on level change
+    var layout = rt.g_h$.g_jC;
+    if (layout !== lastLayout) {
+      lastLayout = layout;
+      attempts   = 1;
+      lastDeaths = 0;
+      dfVar      = null;
+      render();
+    }
+
+    // Count deaths → attempts
+    var v = getDeadFlies(rt);
+    if (!v || typeof v.data !== 'number') return;
+    if (v.data > lastDeaths) {
+      attempts  += v.data - lastDeaths;
+      lastDeaths = v.data;
+      render();
+    }
+  }, 250);
+})();
+</script>
 </body>
 </html>
