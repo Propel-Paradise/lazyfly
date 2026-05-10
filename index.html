@@ -46,6 +46,7 @@
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
+  text-align: right;
   display: none;
 ">Attempt 1</div>
 
@@ -88,20 +89,24 @@
   }
 
   function pin(rt) {
-    // Level numbers are all instances of the Level1Text type (id 35 in data.js).
-    // Each layout places one instance with the level's text at its world position.
-    var type = rt.types && rt.types['Level1Text'];
-    if (!type || !type.g_jQ || !type.g_jQ.length) return false;
+    // Find whichever LevelNText type has a live instance on this layout.
+    // Levels 1–26 each place one instance of their own type (Level1Text … Level26Text).
+    var type = null;
+    for (var n = 1; n <= 26; n++) {
+      var t = rt.types && rt.types['Level' + n + 'Text'];
+      if (t && t.g_jQ && t.g_jQ.length) { type = t; break; }
+    }
+    if (!type) return false;
 
     var inst = type.g_jQ[0];
 
-    // World position of the level text's top-left corner
+    // Right edge and top of the level text in world space
     // (inst.x, inst.y are the centre; width≈60, height≈20 from data.js)
-    var instX = inst.x - (inst.width  || 60) / 2;
-    var instY = inst.y - (inst.height || 20) / 2;
+    var rightX = inst.x + (inst.width  || 60) / 2;
+    var topY   = inst.y - (inst.height || 20) / 2;
 
-    var topLeft = worldToScreen(rt, instX, instY);
-    if (!topLeft) return false;
+    var rightEdge = worldToScreen(rt, rightX, topY);
+    if (!rightEdge) return false;
 
     // Scale the 20px world-height to screen pixels for the vertical gap
     var c      = window.c3canvas;
@@ -110,9 +115,10 @@
     var pxPerWorldUnit = (r.height / rt.g_iT) * scale;
     var textScreenH    = 20 * pxPerWorldUnit;
 
-    // Place the div just below the level text (2px gap)
-    el.style.left    = topLeft.x + 'px';
-    el.style.top     = (topLeft.y + textScreenH + 2) + 'px';
+    // Right-align the div to the level text's right edge
+    el.style.left    = 'auto';
+    el.style.right   = (window.innerWidth - rightEdge.x) + 'px';
+    el.style.top     = (rightEdge.y + textScreenH + 2) + 'px';
     el.style.display = 'block';
 
     // Match the font size to the level text's 12px world size → screen px
