@@ -46,7 +46,7 @@
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
-  text-align: right;
+  text-align: left;
   display: none;
 ">Attempt 1</div>
 
@@ -100,13 +100,13 @@
 
     var inst = type.g_jQ[0];
 
-    // Right edge and top of the level text in world space
+    // Left edge and top of the level text in world space
     // (inst.x, inst.y are the centre; width≈60, height≈20 from data.js)
-    var rightX = inst.x + (inst.width  || 60) / 2;
-    var topY   = inst.y - (inst.height || 20) / 2;
+    var leftX = inst.x - (inst.width  || 60) / 2;
+    var topY  = inst.y - (inst.height || 20) / 2;
 
-    var rightEdge = worldToScreen(rt, rightX, topY);
-    if (!rightEdge) return false;
+    var leftEdge = worldToScreen(rt, leftX, topY);
+    if (!leftEdge) return false;
 
     // Scale the 20px world-height to screen pixels for the vertical gap
     var c      = window.c3canvas;
@@ -115,10 +115,10 @@
     var pxPerWorldUnit = (r.height / rt.g_iT) * scale;
     var textScreenH    = 20 * pxPerWorldUnit;
 
-    // Right-align the div to the level text's right edge
-    el.style.left    = 'auto';
-    el.style.right   = (window.innerWidth - rightEdge.x) + 'px';
-    el.style.top     = (rightEdge.y + textScreenH + 2) + 'px';
+    // Left-align the div to the level text's left edge
+    el.style.right   = 'auto';
+    el.style.left    = leftEdge.x + 'px';
+    el.style.top     = (leftEdge.y + textScreenH + 2) + 'px';
     el.style.display = 'block';
 
     // Match the font size to the level text's 12px world size → screen px
