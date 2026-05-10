@@ -20,68 +20,73 @@
 	<script src="start.js"></script>
 	<script src="register-sw.js"></script>
 
-<!-- Death Counter Overlay -->
-<div id="lazyfly-deaths" style="
+<!-- Attempt Counter (Geometry Dash style) -->
+<div id="lazyfly-attempt" style="
   position: fixed;
-  top: 12px;
-  right: 14px;
+  bottom: 18%;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 9999;
-  font-family: monospace;
-  font-size: 13px;
-  color: rgba(255,255,255,0.85);
-  background: rgba(30,30,30,0.72);
-  padding: 3px 10px 3px 8px;
-  border-radius: 4px;
+  font-family: Arial Black, Arial, sans-serif;
+  font-size: clamp(28px, 6vw, 64px);
+  font-weight: 900;
+  color: rgba(255,255,255,0.13);
   pointer-events: none;
   user-select: none;
-  letter-spacing: 0.04em;
-">&#128128; 0</div>
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+"></div>
 
 <script>
 (function () {
-  var KEY = 'lazyfly_total_deaths';
-  var totalDeaths = parseInt(localStorage.getItem(KEY) || '0', 10);
-  var lastSessionCount = 0;
-  var el = document.getElementById('lazyfly-deaths');
+  var attempts = 1;
+  var lastDeaths = 0;
+  var lastLayout = null;
+  var deadFliesVar = null;
+  var el = document.getElementById('lazyfly-attempt');
+
+  // Gameplay layouts only — title/tutorial/end don't show the counter
+  var SKIP_LAYOUTS = null; // populated on first run
 
   function render() {
-    el.textContent = '\uD83D\uDC80 ' + totalDeaths;
+    el.textContent = 'Attempt ' + attempts;
   }
-  render();
 
-  // Cached reference to the DeadFlies variable object in the C3 runtime
-  var deadFliesVar = null;
-
-  function getSessionDeaths() {
-    var rt = window.c3runtime;
-    if (!rt || !rt.g_hZ) return null;
-
-    // Find the DeadFlies global variable by name (cached after first discovery)
-    if (!deadFliesVar) {
-      var keys = Object.keys(rt.g_hZ);
-      for (var i = 0; i < keys.length; i++) {
-        var v = rt.g_hZ[keys[i]];
-        if (v && v.name === 'DeadFlies') {
-          deadFliesVar = v;
-          break;
-        }
-      }
+  function findDeadFliesVar(rt) {
+    if (deadFliesVar) return deadFliesVar;
+    var keys = Object.keys(rt.g_hZ);
+    for (var i = 0; i < keys.length; i++) {
+      var v = rt.g_hZ[keys[i]];
+      if (v && v.name === 'DeadFlies') { deadFliesVar = v; break; }
     }
-
-    if (!deadFliesVar || typeof deadFliesVar.data !== 'number') return null;
-    return deadFliesVar.data;
+    return deadFliesVar;
   }
 
   function poll() {
-    var current = getSessionDeaths();
-    if (current === null) return; // runtime not ready yet
+    var rt = window.c3runtime;
+    if (!rt || !rt.g_hZ || !rt.g_h$) return;
 
-    if (current > lastSessionCount) {
-      totalDeaths += (current - lastSessionCount);
-      localStorage.setItem(KEY, totalDeaths);
+    var currentLayout = rt.g_h$.g_jC;
+
+    // Layout changed → reset attempts for the new level
+    if (currentLayout !== lastLayout) {
+      lastLayout = currentLayout;
+      attempts = 1;
+      lastDeaths = 0;
+      deadFliesVar = null; // re-discover in case vars shifted
       render();
     }
-    lastSessionCount = current;
+
+    var dfv = findDeadFliesVar(rt);
+    if (!dfv || typeof dfv.data !== 'number') return;
+
+    var current = dfv.data;
+    if (current > lastDeaths) {
+      attempts += (current - lastDeaths);
+      lastDeaths = current;
+      render();
+    }
   }
 
   setInterval(poll, 250);
